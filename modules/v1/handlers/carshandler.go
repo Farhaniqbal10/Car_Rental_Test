@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"car_rental_test/app/config"
-	"car_rental_test/models"
+	"car_rental_test/modules/v1/models"
 	"context"
 	"fmt"
 	"net/http"

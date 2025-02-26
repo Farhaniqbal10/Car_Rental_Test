@@ -9,3 +9,11 @@ type Booking struct {
 	TotalCost  int64  `json:"total_cost"`
 	Finished   bool   `json:"finished"`
 }
+
+type BookingQueryParams struct {
+	CustomerID *int    `form:"customer_id"`
+	CarsID     *int    `form:"cars_id"`
+	StartTime  *string `form:"start_time"`
+	EndTime    *string `form:"end_time"`
+	Finished   *bool   `form:"finished"`
+}

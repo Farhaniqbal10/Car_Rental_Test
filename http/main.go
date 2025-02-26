@@ -2,7 +2,7 @@ package main
 
 import (
 	"car_rental_test/app/config"
-	"car_rental_test/routes"
+	"car_rental_test/modules/v1/routes"
 	"fmt"
 )
 
