@@ -63,7 +63,7 @@ func (h *CustomerHandler) GetCustomersByParams(c *gin.Context) {
 
 	fmt.Println("Query:", query, "Values:", values)
 
-	rows, err := h.DB.Conn.Query(context.Background(), query, values...)
+	rows, err := h.DB.Conn.QueryContext(context.Background(), query, values...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data pelanggan", "detail": err.Error()})
 		return
@@ -97,7 +97,7 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	// Debug log
 	fmt.Printf("Executing Query: %s\nWith Params: %v\n", query, params)
 
-	_, err := h.DB.Conn.Exec(context.Background(), query, params...)
+	_, err := h.DB.Conn.ExecContext(context.Background(), query, params...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to create customer",
@@ -121,7 +121,7 @@ func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 		return
 	}
 
-	_, err := h.DB.Conn.Exec(context.Background(), "UPDATE customers SET name=$1, nik=$2, phone_number=$3 WHERE customer_id=$4",
+	_, err := h.DB.Conn.ExecContext(context.Background(), "UPDATE customers SET name=$1, nik=$2, phone_number=$3 WHERE customer_id=$4",
 		customer.Name, customer.NIK, customer.PhoneNumber, id)
 
 	if err != nil {
@@ -136,7 +136,7 @@ func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 func (h *CustomerHandler) DeleteCustomer(c *gin.Context) {
 	id := c.Param("id")
 
-	_, err := h.DB.Conn.Exec(context.Background(), "DELETE FROM customers WHERE customer_id=$1", id)
+	_, err := h.DB.Conn.ExecContext(context.Background(), "DELETE FROM customers WHERE customer_id=$1", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete customer"})
 		return

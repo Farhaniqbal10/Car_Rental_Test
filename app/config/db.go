@@ -1,23 +1,24 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
+
+	_ "github.com/jackc/pgx/v5/stdlib" // Import driver pgx untuk sqlx
+	"github.com/jmoiron/sqlx"
 )
 
-// Database struct untuk menyimpan koneksi database
+// Database struct menyimpan koneksi database sebagai *sqlx.DB
 type Database struct {
-	Conn *pgx.Conn
+	Conn *sqlx.DB
 }
 
 // NewDatabase - Konstruktor untuk membuat koneksi database
 func NewDatabase() (*Database, error) {
-	err := godotenv.Load("C:/belajar/car_rental_test/.env") // Gunakan slash (/) agar cross-platform
+	err := godotenv.Load("C:/belajar/car_rental_test/.env")
 	if err != nil {
 		log.Fatal("Error loading .env file from C:/belajar/car_rental_test/.env")
 	}
@@ -39,19 +40,20 @@ func NewDatabase() (*Database, error) {
 		os.Getenv("DB_NAME"),
 	)
 
-	conn, err := pgx.Connect(context.Background(), dsn)
+	// Gunakan sqlx untuk koneksi database
+	db, err := sqlx.Connect("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to db: %w", err)
 	}
 
 	fmt.Println("Database connected!")
-	return &Database{Conn: conn}, nil
+	return &Database{Conn: db}, nil
 }
 
 // Close - Menutup koneksi database
 func (db *Database) Close() {
 	if db.Conn != nil {
-		db.Conn.Close(context.Background())
+		db.Conn.Close()
 		fmt.Println("DB connection closed")
 	}
 }

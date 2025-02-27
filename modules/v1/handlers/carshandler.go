@@ -63,7 +63,7 @@ func (h *CarHandler) GetCarsByParams(c *gin.Context) {
 
 	fmt.Println("Query:", query, "Values:", values)
 
-	rows, err := h.DB.Conn.Query(context.Background(), query, values...)
+	rows, err := h.DB.Conn.QueryContext(context.Background(), query, values...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data mobil", "detail": err.Error()})
 		return
@@ -97,7 +97,7 @@ func (h *CarHandler) CreateCar(c *gin.Context) {
 	// Debug log
 	fmt.Printf("Executing Query: %s\nWith Params: %v\n", query, params)
 
-	_, err := h.DB.Conn.Exec(context.Background(), query, params...)
+	_, err := h.DB.Conn.ExecContext(context.Background(), query, params...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to create car",
@@ -121,7 +121,7 @@ func (h *CarHandler) UpdateCar(c *gin.Context) {
 		return
 	}
 
-	_, err := h.DB.Conn.Exec(context.Background(), "UPDATE cars SET name=$1, rent_price_daily=$2, stock=$3 WHERE cars_id=$4",
+	_, err := h.DB.Conn.ExecContext(context.Background(), "UPDATE cars SET name=$1, rent_price_daily=$2, stock=$3 WHERE cars_id=$4",
 		car.Name, car.RentPriceDaily, car.Stock, id)
 
 	if err != nil {
@@ -136,7 +136,7 @@ func (h *CarHandler) UpdateCar(c *gin.Context) {
 func (h *CarHandler) DeleteCar(c *gin.Context) {
 	id := c.Param("id")
 
-	_, err := h.DB.Conn.Exec(context.Background(), "DELETE FROM cars WHERE cars_id=$1", id)
+	_, err := h.DB.Conn.ExecContext(context.Background(), "DELETE FROM cars WHERE cars_id=$1", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete car"})
 		return
