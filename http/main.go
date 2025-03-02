@@ -1,35 +1,69 @@
 package main
 
 import (
-	"car_rental_test/app/config"
-	"car_rental_test/modules/v1/data"
-	"car_rental_test/modules/v1/handlers"
-	"car_rental_test/modules/v1/routes"
-	"car_rental_test/modules/v1/services"
 	"fmt"
+	"log"
+	"time"
+
+	"car_rental_test/app/config"
+	"car_rental_test/app/driver"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	// Inisialisasi Database
-	db, err := config.NewDatabase()
+	// Inisialisasi konfigurasi
+	cfg, err := config.Init()
 	if err != nil {
-		fmt.Println("Error connecting to DB:", err)
-		return
+		log.Fatalf("[BOOT] Failed to initiate config | %s", err.Error())
 	}
-	defer db.Close() // Tutup koneksi saat aplikasi berhenti
 
-	// Inisialisasi repository
-	bookingRepo := data.NewBookingRepository(db.Conn) // Sekarang ini tidak error
+	// Inisialisasi router
+	r := gin.Default()
+	r.RedirectTrailingSlash = false
 
-	// Inisialisasi service
-	bookingService := services.NewBookingService(bookingRepo)
+	// Menentukan mode aplikasi (debug/release)
+	gin.SetMode(gin.ReleaseMode)
+	if cfg.App.Mode == "debug" {
+		gin.SetMode(gin.DebugMode)
+	}
 
-	// Inisialisasi handler
-	bookingHandler := handlers.NewBookingHandler(bookingService)
+	// Inisialisasi database
+	dbCfg := cfg.DB
+	dsn := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		dbCfg.User, dbCfg.Password, dbCfg.Host, dbCfg.Port, dbCfg.Name)
 
-	// Injeksi ke router
-	r := routes.SetupRouter(bookingHandler)
+	db, err := sqlx.Open(dbCfg.Driver, dsn)
+	if err != nil {
+		log.Fatalf("[DATABASE] Error while opening connection to database | %s", err.Error())
+	}
 
-	fmt.Println("Server is running on port 8081")
-	r.Run(":8081")
+	if err := db.Ping(); err != nil {
+		log.Fatalf("[DATABASE] Error while checking connection to database | %s", err.Error())
+	}
+
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxIdleTime(time.Minute)
+
+	// Inisialisasi driver untuk menghubungkan repository, service, dan handler
+	if err := driver.Init(r, db); err != nil {
+		log.Fatalf("[BOOT] Failed to init modules driver | %s", err.Error())
+	}
+
+	fmt.Println("[DEBUG] Menggunakan database config:")
+	fmt.Printf("[DEBUG] Driver: %s\n", dbCfg.Driver)
+	fmt.Printf("[DEBUG] Host: %s\n", dbCfg.Host)
+	fmt.Printf("[DEBUG] Port: %s\n", dbCfg.Port)
+	fmt.Printf("[DEBUG] User: %s\n", dbCfg.User)
+	fmt.Printf("[DEBUG] Password: %s\n", dbCfg.Password)
+	fmt.Printf("[DEBUG] Name: %s\n", dbCfg.Name)
+
+	// Menjalankan server
+	port := cfg.App.Port
+	log.Printf("[SERVER] Running on port %s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("[SERVER] Failed to start | %s", err.Error())
+	}
 }

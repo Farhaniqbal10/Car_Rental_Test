@@ -1,26 +1,19 @@
 package handlers
 
 import (
-	"car_rental_test/modules/v1/models"
-	"car_rental_test/modules/v1/services"
-	"context"
+	"car_rental_test/modules/car/v1/models"
+	"database/sql"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-type BookingHandler struct {
-	Service *services.BookingService
-}
-
-func NewBookingHandler(service *services.BookingService) *BookingHandler {
-	return &BookingHandler{Service: service}
-}
-
 // Get Bookings by Params or All Bookings
-func (h *BookingHandler) GetBookingsByParams(c *gin.Context) {
+func (h *Handler) GetBookingsByParams(c *gin.Context) {
+	ctx := c.Request.Context()
 	var params models.BookingQueryParams
 
 	if err := c.ShouldBindQuery(&params); err != nil {
@@ -29,9 +22,7 @@ func (h *BookingHandler) GetBookingsByParams(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Received query params: %+v\n", params) // Debugging log
-
-	bookings, err := h.Service.GetBookingsByParams(context.Background(), params)
+	bookings, err := h.carSvc.GetBookingsByParams(ctx, params)
 	if err != nil {
 		log.Println("[ERROR] Failed to fetch bookings with params:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bookings"})
@@ -42,7 +33,8 @@ func (h *BookingHandler) GetBookingsByParams(c *gin.Context) {
 }
 
 // Create Booking
-func (h *BookingHandler) CreateBooking(c *gin.Context) {
+func (h *Handler) CreateBooking(c *gin.Context) {
+	ctx := c.Request.Context()
 	var booking models.Booking
 
 	if err := c.ShouldBindJSON(&booking); err != nil {
@@ -51,22 +43,20 @@ func (h *BookingHandler) CreateBooking(c *gin.Context) {
 		return
 	}
 
-	bookingID, err := h.Service.CreateBooking(c.Request.Context(), booking)
+	err := h.carSvc.CreateBooking(ctx, booking)
 	if err != nil {
 		log.Println("[ERROR] Failed to create booking:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create booking"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message":    "Booking created successfully",
-		"booking_id": bookingID,
-	})
+	c.JSON(http.StatusCreated, gin.H{"message": "Booking created successfully"})
 }
 
 // Update Booking
-func (h *BookingHandler) UpdateBooking(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func (h *Handler) UpdateBooking(c *gin.Context) {
+	ctx := c.Request.Context()
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		log.Println("[ERROR] Invalid booking ID:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid booking ID"})
@@ -80,9 +70,7 @@ func (h *BookingHandler) UpdateBooking(c *gin.Context) {
 		return
 	}
 
-	booking.BookingID = id
-
-	err = h.Service.UpdateBooking(context.Background(), &booking)
+	err = h.carSvc.UpdateBooking(ctx, id, booking)
 	if err != nil {
 		log.Println("[ERROR] Failed to update booking:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update booking"})
@@ -93,18 +81,23 @@ func (h *BookingHandler) UpdateBooking(c *gin.Context) {
 }
 
 // Delete Booking
-func (h *BookingHandler) DeleteBooking(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func (h *Handler) DeleteBooking(c *gin.Context) {
+	ctx := c.Request.Context()
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		log.Println("[ERROR] Invalid booking ID:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid booking ID"})
 		return
 	}
 
-	err = h.Service.DeleteBooking(context.Background(), id)
+	_, err = h.carSvc.DeleteBooking(ctx, id)
 	if err != nil {
 		log.Println("[ERROR] Failed to delete booking:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete booking"})
+		if strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Booking not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete booking"})
+		}
 		return
 	}
 
