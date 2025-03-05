@@ -3,6 +3,7 @@ package handlers
 import (
 	"car_rental_test/modules/car/v1/models"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -15,20 +16,21 @@ import (
 func (h *Handler) GetBookingsByParams(c *gin.Context) {
 	ctx := c.Request.Context()
 	var params models.BookingQueryParams
-
+	fmt.Println("handler1")
+	fmt.Println("param1 : ", params)
 	if err := c.ShouldBindQuery(&params); err != nil {
 		log.Println("[ERROR] Invalid query params:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query params"})
 		return
 	}
-
+	fmt.Println("param2 : ", params)
 	bookings, err := h.carSvc.GetBookingsByParams(ctx, params)
 	if err != nil {
 		log.Println("[ERROR] Failed to fetch bookings with params:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bookings"})
 		return
 	}
-
+	fmt.Println("handler2")
 	c.JSON(http.StatusOK, gin.H{"bookings": bookings})
 }
 
@@ -46,7 +48,7 @@ func (h *Handler) CreateBooking(c *gin.Context) {
 	err := h.carSvc.CreateBooking(ctx, booking)
 	if err != nil {
 		log.Println("[ERROR] Failed to create booking:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create booking"})
+		c.JSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 

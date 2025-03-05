@@ -4,24 +4,39 @@ import (
 	"car_rental_test/modules/car/v1/models"
 	"car_rental_test/pkg/errors"
 	"context"
-	"strings"
+	"fmt"
+
+	"github.com/jmoiron/sqlx"
 )
 
 const (
 	getBookingsByParams  = "GetBookingsByParams"
-	qGetBookingsByParams = `SELECT * FROM booking WHERE customer_id = $1`
-	getBookings          = "GetBookings"
-	qGetBookings         = `SELECT booking_id, customer_id, cars_id, start_time, end_time, total_cost, finished FROM booking`
-	getBookingByID       = "GetBookingByID"
-	qGetBookingByID      = `SELECT booking_id, customer_id, cars_id, start_time, end_time, total_cost, finished FROM booking WHERE booking_id = $1`
-	insertBooking        = "InsertBooking"
-	qInsertBooking       = `INSERT INTO booking (customer_id, cars_id, start_time, end_time, total_cost, finished) VALUES ($1, $2, $3, $4, $5, $6) RETURNING booking_id`
-	updateBooking        = "UpdateBooking"
-	qUpdateBooking       = `UPDATE booking SET customer_id = $1, cars_id = $2, start_time = $3, end_time = $4, total_cost = $5, finished = $6 WHERE booking_id = $7`
-	deleteBooking        = "DeleteBooking"
-	qDeleteBooking       = `DELETE FROM booking WHERE booking_id = $1`
-	getCarRentPrice      = "GetCarRentPrice"
-	qGetCarRentPrice     = `SELECT rent_price_daily FROM cars WHERE cars_id = $1`
+	qGetBookingsByParams = `
+	SELECT * FROM booking 
+	WHERE 
+		(customer_id = $1 OR $1 IS NULL)
+		AND (cars_id = $2 OR $2 IS NULL)
+		AND (start_period >= $3 OR $3 IS NULL)
+		AND (end_period <= $4 OR $4 IS NULL)
+		AND (finished = $5 OR $5 IS NULL)
+`
+
+	getBookings       = "GetBookings"
+	qGetBookings      = `SELECT booking_id, customer_id, cars_id, start_period, end_period, total_cost, finished FROM booking`
+	getBookingByID    = "GetBookingByID"
+	qGetBookingByID   = `SELECT booking_id, customer_id, cars_id, start_period, end_period, total_cost, finished FROM booking WHERE booking_id = $1`
+	insertBooking     = "InsertBooking"
+	qInsertBooking    = `INSERT INTO booking (customer_id, cars_id, start_period, end_period, total_cost, finished) VALUES ($1, $2, $3, $4, $5, $6) RETURNING booking_id`
+	updateBooking     = "UpdateBooking"
+	qUpdateBooking    = `UPDATE booking SET customer_id = $1, cars_id = $2, start_period = $3, end_period = $4, total_cost = $5, finished = $6 WHERE booking_id = $7`
+	deleteBooking     = "DeleteBooking"
+	qDeleteBooking    = `DELETE FROM booking WHERE booking_id = $1`
+	getCarRentPrice   = "GetCarRentPrice"
+	qGetCarRentPrice  = `SELECT rent_price_daily FROM cars WHERE cars_id = $1`
+	decreaseCarStock  = "DecreaseCarStock"
+	qDecreaseCarStock = `UPDATE cars SET stock = stock - 1 WHERE cars_id = $1 AND stock > 0`
+	increaseCarStock  = "IncreaseCarStock"
+	qIncreaseCarStock = `UPDATE cars SET stock = stock + 1 WHERE cars_id = $1`
 )
 
 var (
@@ -33,82 +48,94 @@ var (
 		{updateBooking, qUpdateBooking},
 		{deleteBooking, qDeleteBooking},
 		{getCarRentPrice, qGetCarRentPrice},
+		{decreaseCarStock, qDecreaseCarStock},
+		{increaseCarStock, qIncreaseCarStock},
 	}
 )
 
 // func (d *Data) GetBookingsByParams(ctx context.Context, query models.BookingQueryParams) ([]models.BookingQueryParams, error) {
 // 	var bookings []models.BookingQueryParams
 
-// 	err := d.db.SelectContext(ctx, &bookings, "SELECT * FROM booking WHERE customer_id = $1", query.CustomerID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return bookings, nil
-// }
-
-func (d *Data) GetBookingsByParams(ctx context.Context, query models.BookingQueryParams) ([]models.BookingQueryParams, error) {
-	var (
-		bookings   []models.BookingQueryParams
-		conditions []string
-		args       []interface{}
-	)
-
-	queryStr := "SELECT * FROM booking"
-
-	if query.BookingID != 0 {
-		conditions = append(conditions, "booking_id = $1")
-		args = append(args, query.BookingID)
+//		err := d.db.SelectContext(ctx, &bookings, "SELECT * FROM booking WHERE customer_id = $1", query.CustomerID)
+//		if err != nil {
+//			return nil, err
+//		}
+//		return bookings, nil
+//	}
+func (d *Data) GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.BookingQueryParams, error) {
+	booking := []models.BookingQueryParams{}
+	fmt.Println("data1")
+	stmt := d.stmt[getBookingsByParams]
+	if tx != nil {
+		stmt = tx.Stmtx(stmt)
 	}
+
+	var params []interface{}
+
+	// Menambahkan parameter jika tersedia
 	if query.CustomerID != nil {
-		conditions = append(conditions, "customer_id = $1")
-		args = append(args, *query.CustomerID)
+		params = append(params, *query.CustomerID)
+	} else {
+		params = append(params, nil)
 	}
+
 	if query.CarsID != nil {
-		conditions = append(conditions, "cars_id = $1")
-		args = append(args, *query.CarsID)
-	}
-	if query.StartTime != nil {
-		conditions = append(conditions, "start_time = $1")
-		args = append(args, *query.StartTime)
-	}
-	if query.EndTime != nil {
-		conditions = append(conditions, "end_time = $1")
-		args = append(args, *query.EndTime)
-	}
-	if query.TotalCost != 0 {
-		conditions = append(conditions, "total_cost = $1")
-		args = append(args, query.TotalCost)
-	}
-	if query.Finished != nil && query.Finished.Valid {
-		conditions = append(conditions, "finished = $1")
-		args = append(args, query.Finished.Bool)
+		params = append(params, *query.CarsID)
+	} else {
+		params = append(params, nil)
 	}
 
-	// Gabungkan kondisi dengan operator AND
-	if len(conditions) > 0 {
-		queryStr += " WHERE " + strings.Join(conditions, " AND ")
+	if query.StartPeriod != nil {
+		params = append(params, *query.StartPeriod)
+	} else {
+		params = append(params, nil)
 	}
 
-	// Eksekusi query dengan parameter
-	err := d.db.SelectContext(ctx, &bookings, queryStr, args...)
+	if query.EndPeriod != nil {
+		params = append(params, *query.EndPeriod)
+	} else {
+		params = append(params, nil)
+	}
+
+	// Jika `Finished` adalah pointer, pastikan menangani nilainya dengan benar
+	if query.Finished != nil {
+		params = append(params, query.Finished)
+	} else {
+		params = append(params, nil)
+	}
+
+	err := stmt.SelectContext(ctx, &booking, params...)
 	if err != nil {
-		return nil, err
+		return booking, errors.Wrap(err, "[DATA][GetBookingsByParams]")
 	}
-
-	return bookings, nil
+	fmt.Println("data2")
+	return booking, nil
 }
 
-func (d *Data) CreateBooking(ctx context.Context, booking models.Booking) (int, error) {
-	var id int
-	err := d.stmt[insertBooking].GetContext(ctx, &id,
-		booking.CustomerID, booking.CarsID, booking.StartTime, booking.EndTime, booking.TotalCost, booking.Finished)
-	if err != nil {
-		return 0, errors.Wrap(err, "[DATA][CreateBooking]")
+func (d *Data) CreateBooking(ctx context.Context, tx *sqlx.Tx, input models.Booking) (int64, error) {
+
+	var id int64
+	stmt := d.stmt[insertBooking]
+	if tx != nil {
+		stmt = tx.StmtxContext(ctx, stmt)
 	}
+
+	err := stmt.GetContext(ctx, &id,
+		input.CustomerID,
+		input.CarsID,
+		input.StartPeriod,
+		input.EndPeriod,
+		input.TotalCost,
+		input.Finished)
+
+	if err != nil {
+		return id, errors.Wrap(err, "[DATA][insertArea]")
+	}
+
 	return id, nil
 }
 
-func (d *Data) GetBookingByID(ctx context.Context, id int) (models.Booking, error) {
+func (d *Data) GetBookingByID(ctx context.Context, id int64) (models.Booking, error) {
 	var booking models.Booking
 	err := d.stmt[getBookingByID].GetContext(ctx, &booking, id)
 	if err != nil {
@@ -126,20 +153,28 @@ func (d *Data) GetAllBookings(ctx context.Context) ([]models.Booking, error) {
 	return bookings, nil
 }
 
-func (d *Data) UpdateBooking(ctx context.Context, id int64, input models.Booking) (int, error) {
-	query := `UPDATE booking SET customer_id = $1, cars_id = $2, start_time = $3, end_time = $4, finished = $5 WHERE booking_id = $6`
+func (d *Data) UpdateBooking(ctx context.Context, id int64, tx *sqlx.Tx, input models.Booking) (models.Booking, error) {
+	bookings := models.Booking{}
 
-	res, err := d.db.ExecContext(ctx, query, input.CustomerID, input.CarsID, input.StartTime, input.EndTime, input.Finished, id)
-	if err != nil {
-		return 0, errors.Wrap(err, "[DATA][UpdateBooking]")
+	stmt := d.stmt[updateBooking]
+
+	if tx != nil {
+		stmt = tx.StmtxContext(ctx, stmt)
 	}
 
-	rowsAffected, err := res.RowsAffected()
+	_, err := stmt.ExecContext(ctx,
+		input.CustomerID,
+		input.CarsID,
+		input.StartPeriod,
+		input.EndPeriod,
+		input.TotalCost,
+		input.Finished,
+		id)
 	if err != nil {
-		return 0, errors.Wrap(err, "[DATA][UpdateBooking][RowsAffected]")
+		return bookings, errors.Wrap(err, "[DATA][updateArea]")
 	}
 
-	return int(rowsAffected), nil
+	return bookings, nil
 }
 
 func (d *Data) DeleteBooking(ctx context.Context, id int64) (int, error) {
@@ -163,4 +198,33 @@ func (d *Data) GetCarRentPrice(ctx context.Context, carID int64) (int64, error) 
 		return 0, errors.Wrap(err, "[DATA][GetCarRentPrice]")
 	}
 	return rentPrice, nil
+}
+
+func (d *Data) DecreaseCarStock(ctx context.Context, tx *sqlx.Tx, carID int64) (int64, error) {
+	result, err := tx.ExecContext(ctx, qDecreaseCarStock, carID)
+	if err != nil {
+		return 0, errors.Wrap(err, "[DATA][DecreaseCarStock]")
+	}
+
+	// Ambil jumlah baris yang terpengaruh
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, errors.Wrap(err, "[DATA][DecreaseCarStock][RowsAffected]")
+	}
+
+	return rowsAffected, nil
+}
+
+func (d *Data) IncreaseCarStock(ctx context.Context, tx *sqlx.Tx, carID int64) (int64, error) {
+	result, err := tx.ExecContext(ctx, qIncreaseCarStock, carID) // Hanya kirim carID
+	if err != nil {
+		return 0, errors.Wrap(err, "[DATA][IncreaseCarStock]")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, errors.Wrap(err, "[DATA][IncreaseCarStock][RowsAffected]")
+	}
+
+	return rowsAffected, nil
 }
