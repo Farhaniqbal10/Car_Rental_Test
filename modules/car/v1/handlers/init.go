@@ -6,7 +6,7 @@ import (
 )
 
 type ICarSvc interface {
-	GetBookingsByParams(ctx context.Context, query models.BookingQueryParams) ([]models.BookingQueryParams, error)
+	GetBookingsByParams(ctx context.Context, query models.BookingQueryParams) ([]models.Booking, error)
 	CreateBooking(ctx context.Context, input models.Booking) error
 	UpdateBooking(ctx context.Context, id int64, input models.Booking) error
 	DeleteBooking(ctx context.Context, id int64) (int, error)

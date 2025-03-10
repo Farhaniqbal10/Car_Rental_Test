@@ -12,17 +12,19 @@ import (
 const (
 	getBookingsByParams  = "GetBookingsByParams"
 	qGetBookingsByParams = `
-	SELECT * FROM booking 
-	WHERE 
-		(customer_id = $1 OR $1 IS NULL)
-		AND (cars_id = $2 OR $2 IS NULL)
-		AND (start_period >= $3 OR $3 IS NULL)
-		AND (end_period <= $4 OR $4 IS NULL)
-		AND (finished = $5 OR $5 IS NULL)
+SELECT * FROM booking 
+WHERE 
+    (booking_id = $1 OR $1 = 0)
+    AND (customer_id = $2 OR $2 = 0)
+    AND (cars_id = $3 OR $3 = 0)
+    AND (start_period >= $4 OR $4 = '0001-01-01')
+    AND (end_period <= $5 OR $5 = '0001-01-01')
+    AND (finished = $6)
+ORDER BY booking_id ASC;
 `
 
 	getBookings       = "GetBookings"
-	qGetBookings      = `SELECT booking_id, customer_id, cars_id, start_period, end_period, total_cost, finished FROM booking`
+	qGetBookings      = `SELECT booking_id, customer_id, cars_id, start_period, end_period, total_cost, finished FROM booking ORDER BY booking_id ASC`
 	getBookingByID    = "GetBookingByID"
 	qGetBookingByID   = `SELECT booking_id, customer_id, cars_id, start_period, end_period, total_cost, finished FROM booking WHERE booking_id = $1`
 	insertBooking     = "InsertBooking"
@@ -62,46 +64,21 @@ var (
 //		}
 //		return bookings, nil
 //	}
-func (d *Data) GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.BookingQueryParams, error) {
-	booking := []models.BookingQueryParams{}
+func (d *Data) GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.Booking, error) {
+	booking := []models.Booking{} //ganti jadi model booking
 	fmt.Println("data1")
 	stmt := d.stmt[getBookingsByParams]
 	if tx != nil {
 		stmt = tx.Stmtx(stmt)
 	}
 
-	var params []interface{}
-
-	// Menambahkan parameter jika tersedia
-	if query.CustomerID != nil {
-		params = append(params, *query.CustomerID)
-	} else {
-		params = append(params, nil)
-	}
-
-	if query.CarsID != nil {
-		params = append(params, *query.CarsID)
-	} else {
-		params = append(params, nil)
-	}
-
-	if query.StartPeriod != nil {
-		params = append(params, *query.StartPeriod)
-	} else {
-		params = append(params, nil)
-	}
-
-	if query.EndPeriod != nil {
-		params = append(params, *query.EndPeriod)
-	} else {
-		params = append(params, nil)
-	}
-
-	// Jika `Finished` adalah pointer, pastikan menangani nilainya dengan benar
-	if query.Finished != nil {
-		params = append(params, query.Finished)
-	} else {
-		params = append(params, nil)
+	params := []interface{}{
+		query.BookingID,
+		query.CustomerID,
+		query.CarsID,
+		query.StartPeriod,
+		query.EndPeriod,
+		query.Finished,
 	}
 
 	err := stmt.SelectContext(ctx, &booking, params...)

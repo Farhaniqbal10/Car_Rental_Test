@@ -6,6 +6,6 @@ CREATE TABLE booking (
     end_period TIMESTAMP NOT NULL,
     total_cost BIGINT NOT NULL,
     finished BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (cars_id) REFERENCES cars(cars_id) ON DELETE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+    FOREIGN KEY (cars_id) REFERENCES cars(cars_id) 
 );

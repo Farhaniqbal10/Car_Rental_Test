@@ -9,7 +9,7 @@ import (
 )
 
 // Get Bookings by Parameters
-func (s *Service) GetBookingsByParams(ctx context.Context, params models.BookingQueryParams) ([]models.BookingQueryParams, error) {
+func (s *Service) GetBookingsByParams(ctx context.Context, params models.BookingQueryParams) ([]models.Booking, error) {
 	fmt.Println("service1")
 	bookings, err := s.carData.GetBookingsByParams(ctx, nil, params)
 	if err != nil {
@@ -57,6 +57,15 @@ func (s *Service) CreateBooking(ctx context.Context, booking models.Booking) err
 		return errors.Wrap(fmt.Errorf("stok mobil habis, transaksi dibatalkan"), "[SERVICE][CreateBooking]")
 	}
 
+	// bookings := models.BookingInput{ // Tidak perlu di-convert karena sama
+	// 	CustomerID:  booking.CustomerID, // Convert dari null.Int64 ke int64
+	// 	CarsID:      booking.CarsID,
+	// 	StartPeriod: booking.StartPeriod, // Convert dari null.Time ke time.Time
+	// 	EndPeriod:   booking.EndPeriod,
+	// 	TotalCost:   booking.TotalCost,
+	// 	Finished:    booking.Finished,
+	// }
+
 	// Simpan booking ke database
 	_, err = s.carData.CreateBooking(ctx, tx, booking)
 	if err != nil {
@@ -72,93 +81,98 @@ func (s *Service) CreateBooking(ctx context.Context, booking models.Booking) err
 	return nil
 }
 
-// func (s *Service) CreateBooking(ctx context.Context, booking models.Booking) error {
-// 	tx, err := s.carData.BeginTx(ctx)
-// 	if err != nil {
-// 		return errors.Wrap(err, "[SERVICE][CreateBooking]")
-// 	}
-// 	defer s.carData.RollbackTx(ctx, tx)
-
-// 	// Hitung harga rental mobil
-// 	rentPrice, err := s.carData.GetCarRentPrice(ctx, int64(booking.CarsID))
-// 	if err != nil {
-// 		return errors.Wrap(err, "[SERVICE][CreateBooking][GetCarRentPrice]")
-// 	}
-
-// 	// Hitung total biaya berdasarkan jumlah hari
-// 	days := int64(booking.EndTime.Sub(booking.StartTime).Hours()/24) + 1
-// 	booking.TotalCost = days * rentPrice
-
-// 	// Simpan booking ke database
-// 	_, err = s.carData.CreateBooking(ctx, tx, booking)
-// 	if err != nil {
-// 		return errors.Wrap(err, "[SERVICE][CreateBooking][CreateBooking]")
-// 	}
-
-// 	// Misalnya ada tambahan history atau proses lain, tambahkan di sini
-
-// 	// Commit transaksi
-// 	err = s.carData.CommitTx(ctx, tx)
-// 	if err != nil {
-// 		return errors.Wrap(err, "[SERVICE][CreateBooking][CommitTx]")
-// 	}
-
-// 	return nil
-// }
-
-// Update Booking with total cost recalculation
-
 func (s *Service) UpdateBooking(ctx context.Context, id int64, booking models.Booking) error {
+	// 1️⃣ Validasi tanggal
+	// if booking.EndPeriod.Before(booking.StartPeriod) {
+	// 	return fmt.Errorf("[SERVICE][UpdateBooking] tanggal kembali tidak boleh lebih awal dari tanggal rental")
+	// }
+
 	tx, err := s.carData.BeginTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "[SERVICE][UpdateBooking][BeginTx]")
+		return fmt.Errorf("[SERVICE][UpdateBooking][BeginTx]: %w", err)
 	}
-	defer s.carData.RollbackTx(ctx, tx) // Jika ada error, rollback transaksi
+	defer s.carData.RollbackTx(ctx, tx)
 
-	// 🔹 1. Ambil cars_id lama sebelum update
-	oldBooking, errGetOldBooking := s.carData.GetBookingByID(ctx, id) // Ambil booking lama
+	// 2️⃣ Ambil data booking lama
+	oldBooking, errGetOldBooking := s.carData.GetBookingByID(ctx, id)
 	if errGetOldBooking != nil {
-		return errors.Wrap(errGetOldBooking, "[SERVICE][UpdateBooking][GetBookingByID]")
+		return fmt.Errorf("[SERVICE][UpdateBooking][GetBookingByID]: %w", errGetOldBooking)
 	}
 
-	// 🔹 2. Kembalikan stok mobil lama
-	if oldBooking.CarsID != booking.CarsID { // Hanya jika ganti mobil
-		_, errIncreaseStock := s.carData.IncreaseCarStock(ctx, tx, int64(oldBooking.CarsID))
+	// Jika CustomerID kosong, gunakan nilai lama
+	if booking.CustomerID == 0 {
+		booking.CustomerID = oldBooking.CustomerID
+	}
+
+	// Jika CarsID kosong, gunakan nilai lama
+	if booking.CarsID == 0 {
+		booking.CarsID = oldBooking.CarsID
+	}
+
+	// Jika StartPeriod kosong, gunakan nilai lama
+	if booking.StartPeriod.IsZero() {
+		booking.StartPeriod = oldBooking.StartPeriod
+	}
+
+	// Validasi StartPeriod tidak melebihi EndPeriod sebelumnya
+	if booking.StartPeriod.After(oldBooking.EndPeriod) {
+		return fmt.Errorf("[SERVICE][UpdateBooking] update invalid: tanggal mulai melebihi tanggal akhir sebelumnya")
+	}
+
+	// Jika EndPeriod kosong, gunakan nilai lama
+	if booking.EndPeriod.IsZero() {
+		booking.EndPeriod = oldBooking.EndPeriod
+	}
+
+	// Jika Finished tidak dikirim, gunakan nilai lama
+	if !booking.Finished {
+		booking.Finished = oldBooking.Finished
+	}
+
+	// 3️⃣ Update stok mobil jika CarsID berubah
+	if booking.CarsID != oldBooking.CarsID {
+		_, errIncreaseStock := s.carData.IncreaseCarStock(ctx, tx, oldBooking.CarsID)
 		if errIncreaseStock != nil {
-			return errors.Wrap(errIncreaseStock, "[SERVICE][UpdateBooking][IncreaseCarStock]")
+			return fmt.Errorf("[SERVICE][UpdateBooking][IncreaseCarStock]: %w", errIncreaseStock)
 		}
 
-		fmt.Println(oldBooking.CarsID)
-
-		// 🔹 3. Kurangi stok mobil baru
-		rowsAffected, errDecreaseStock := s.carData.DecreaseCarStock(ctx, tx, int64(booking.CarsID))
+		rowsAffected, errDecreaseStock := s.carData.DecreaseCarStock(ctx, tx, booking.CarsID)
 		if errDecreaseStock != nil {
-			return errors.Wrap(errDecreaseStock, "[SERVICE][UpdateBooking][DecreaseCarStock]")
+			return fmt.Errorf("[SERVICE][UpdateBooking][DecreaseCarStock]: %w", errDecreaseStock)
 		}
 		if rowsAffected == 0 {
-			return errors.Wrap(fmt.Errorf("stok mobil habis, transaksi dibatalkan"), "[SERVICE][UpdateBooking]")
+			return fmt.Errorf("[SERVICE][UpdateBooking] stok mobil habis, transaksi dibatalkan")
 		}
 	}
 
-	// 🔹 4. Hitung ulang total biaya berdasarkan harga rental mobil baru
-	rentPrice, errGetCarRent := s.carData.GetCarRentPrice(ctx, int64(booking.CarsID))
+	// 4️⃣ Hitung ulang total biaya
+	rentPrice, errGetCarRent := s.carData.GetCarRentPrice(ctx, booking.CarsID)
 	if errGetCarRent != nil {
-		return errors.Wrap(errGetCarRent, "[SERVICE][UpdateBooking][GetCarRentPrice]")
+		return fmt.Errorf("[SERVICE][UpdateBooking][GetCarRentPrice]: %w", errGetCarRent)
 	}
 
 	days := int(booking.EndPeriod.Sub(booking.StartPeriod).Hours()/24) + 1
 	booking.TotalCost = int64(days) * rentPrice
 
-	// 🔹 5. Update booking di database
+	// bookings := models.BookingUpdate{ // Tidak perlu di-convert karena sama
+	// 	CustomerID:  null.IntFrom(booking.CustomerID), // Convert dari null.Int64 ke int64
+	// 	CarsID:      null.IntFrom(booking.CarsID),
+	// 	StartPeriod: null.TimeFrom(booking.StartPeriod), // Convert dari null.Time ke time.Time
+	// 	EndPeriod:   null.TimeFrom(booking.EndPeriod),
+	// 	TotalCost:   null.IntFrom(booking.TotalCost),
+	// 	Finished:    null.BoolFrom(booking.Finished),
+	// }
+
+	// 5️⃣ Update booking di database
 	_, errUpdateBooking := s.carData.UpdateBooking(ctx, id, tx, booking)
 	if errUpdateBooking != nil {
-		return errors.Wrap(errUpdateBooking, "[SERVICE][UpdateBooking][UpdateBooking]")
+		return fmt.Errorf("[SERVICE][UpdateBooking][UpdateBooking]: %w", errUpdateBooking)
 	}
 
-	// 🔹 6. Commit transaksi jika semua berhasil
+	// 6️⃣ Commit transaksi
 	err = s.carData.CommitTx(ctx, tx)
 	if err != nil {
-		return errors.Wrap(err, "[SERVICE][UpdateBooking][CommitTx]")
+		return fmt.Errorf("[SERVICE][UpdateBooking][CommitTx]: %w", err)
 	}
 
 	return nil

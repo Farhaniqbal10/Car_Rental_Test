@@ -12,7 +12,7 @@ type ICarData interface {
 	CommitTx(ctx context.Context, tx *sqlx.Tx) error
 	RollbackTx(ctx context.Context, tx *sqlx.Tx) error
 
-	GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.BookingQueryParams, error)
+	GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.Booking, error)
 	CreateBooking(ctx context.Context, tx *sqlx.Tx, input models.Booking) (int64, error)
 	UpdateBooking(ctx context.Context, id int64, tx *sqlx.Tx, input models.Booking) (models.Booking, error)
 	DeleteBooking(ctx context.Context, id int64) (int, error)
