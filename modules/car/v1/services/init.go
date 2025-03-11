@@ -8,10 +8,11 @@ import (
 )
 
 type ICarData interface {
+	//transaction
 	BeginTx(ctx context.Context) (*sqlx.Tx, error)
 	CommitTx(ctx context.Context, tx *sqlx.Tx) error
 	RollbackTx(ctx context.Context, tx *sqlx.Tx) error
-
+	//BOOKING
 	GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.Booking, error)
 	CreateBooking(ctx context.Context, tx *sqlx.Tx, input models.Booking) (int64, error)
 	UpdateBooking(ctx context.Context, id int64, tx *sqlx.Tx, input models.Booking) (models.Booking, error)
@@ -20,6 +21,12 @@ type ICarData interface {
 	DecreaseCarStock(ctx context.Context, tx *sqlx.Tx, carID int64) (int64, error)
 	IncreaseCarStock(ctx context.Context, tx *sqlx.Tx, carID int64) (int64, error) // 🔹 Fungsi baru untuk menambah stok mobil
 	GetBookingByID(ctx context.Context, id int64) (models.Booking, error)          // 🔹 Fungsi baru untuk mendapatkan booking lama
+	//CARS
+	GetCar(ctx context.Context, query models.CarQueryParams) ([]models.Car, error)
+	CreateCar(ctx context.Context, tx *sqlx.Tx, input models.Car) (int64, error)
+	UpdateCar(ctx context.Context, id int64, input models.Car) (models.Car, error)
+	DeleteCar(ctx context.Context, id int64) (int, error)
+	GetCarByID(ctx context.Context, id int64) (models.Car, error)
 }
 
 type Service struct {

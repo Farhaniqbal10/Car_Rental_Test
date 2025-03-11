@@ -55,15 +55,6 @@ var (
 	}
 )
 
-// func (d *Data) GetBookingsByParams(ctx context.Context, query models.BookingQueryParams) ([]models.BookingQueryParams, error) {
-// 	var bookings []models.BookingQueryParams
-
-//		err := d.db.SelectContext(ctx, &bookings, "SELECT * FROM booking WHERE customer_id = $1", query.CustomerID)
-//		if err != nil {
-//			return nil, err
-//		}
-//		return bookings, nil
-//	}
 func (d *Data) GetBookingsByParams(ctx context.Context, tx *sqlx.Tx, query models.BookingQueryParams) ([]models.Booking, error) {
 	booking := []models.Booking{} //ganti jadi model booking
 	fmt.Println("data1")

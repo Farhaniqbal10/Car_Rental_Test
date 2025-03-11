@@ -57,15 +57,6 @@ func (s *Service) CreateBooking(ctx context.Context, booking models.Booking) err
 		return errors.Wrap(fmt.Errorf("stok mobil habis, transaksi dibatalkan"), "[SERVICE][CreateBooking]")
 	}
 
-	// bookings := models.BookingInput{ // Tidak perlu di-convert karena sama
-	// 	CustomerID:  booking.CustomerID, // Convert dari null.Int64 ke int64
-	// 	CarsID:      booking.CarsID,
-	// 	StartPeriod: booking.StartPeriod, // Convert dari null.Time ke time.Time
-	// 	EndPeriod:   booking.EndPeriod,
-	// 	TotalCost:   booking.TotalCost,
-	// 	Finished:    booking.Finished,
-	// }
-
 	// Simpan booking ke database
 	_, err = s.carData.CreateBooking(ctx, tx, booking)
 	if err != nil {

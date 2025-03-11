@@ -24,4 +24,5 @@ func initCar(r *gin.Engine, db *sqlx.DB) {
 
 	carRoutes = routes.New(r, CarHandler)
 	carRoutes.BookingRoutes()
+	carRoutes.CarRoutes()
 }

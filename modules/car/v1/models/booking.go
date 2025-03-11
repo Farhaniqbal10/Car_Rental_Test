@@ -29,7 +29,7 @@ type BookingQueryParams struct { // ga perlu null
 	StartPeriod time.Time `form:"start_period"`
 	EndPeriod   time.Time `form:"end_period"`
 	TotalCost   int64     `form:"total_cost"`
-	Finished    bool      `form:"finished"`
+	Finished    bool      `form:"finished" db:"finished"`
 }
 
 // Struct untuk input dan update booking

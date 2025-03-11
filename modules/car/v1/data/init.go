@@ -39,6 +39,7 @@ func (d *Data) initStmt() {
 
 	stmts := slices.Concat(
 		BookingStmts,
+		CarsStmts,
 	)
 
 	for _, v := range stmts {
